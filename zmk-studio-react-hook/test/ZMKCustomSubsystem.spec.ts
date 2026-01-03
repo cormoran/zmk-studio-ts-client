@@ -2,7 +2,10 @@
  * Tests for ZMKCustomSubsystem
  */
 
-import { ZMKCustomSubsystem, ZMKCustomSubsystemError } from "../src/ZMKService";
+import {
+  ZMKCustomSubsystem,
+  ZMKCustomSubsystemError,
+} from "../src/ZMKCustomSubsystem";
 import type { RpcConnection } from "@zmkfirmware/zmk-studio-ts-client";
 
 // Mock the call_rpc function
@@ -116,7 +119,10 @@ describe("ZMKCustomSubsystem", () => {
 
 describe("ZMKCustomSubsystemError", () => {
   it("should create connection error", () => {
-    const error = new ZMKCustomSubsystemError("connection", "Failed to connect");
+    const error = new ZMKCustomSubsystemError(
+      "connection",
+      "Failed to connect"
+    );
     expect(error.name).toBe("ZMKCustomSubsystemError");
     expect(error.type).toBe("connection");
     expect(error.message).toBe("Failed to connect");
