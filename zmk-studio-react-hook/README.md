@@ -90,21 +90,24 @@ function MyComponent() {
 }
 ```
 
-### Using ZMKService for RPC Calls
+### Using ZMKCustomSubsystem for RPC Calls
 
 ```typescript
-import { useZMKApp, ZMKService } from "@zmkfirmware/zmk-studio-react-hook";
+import {
+  useZMKApp,
+  ZMKCustomSubsystem,
+} from "@zmkfirmware/zmk-studio-react-hook";
 import { useEffect, useState } from "react";
 
 function MyComponent() {
   const { state, connect, isConnected } = useZMKApp();
-  const [service, setService] = useState<ZMKService | null>(null);
+  const [service, setService] = useState<ZMKCustomSubsystem | null>(null);
 
   useEffect(() => {
     if (state.connection && state.customSubsystems) {
       const subsystem = state.customSubsystems.subsystems[0];
       if (subsystem) {
-        setService(new ZMKService(state.connection, subsystem.index));
+        setService(new ZMKCustomSubsystem(state.connection, subsystem.index));
       }
     }
   }, [state.connection, state.customSubsystems]);
@@ -186,14 +189,14 @@ Main hook for managing ZMK device connections.
 - `onNotification(subsystemIndex, callback)`: Subscribe to custom notifications
   - Returns unsubscribe function
 
-### `ZMKService`
+### `ZMKCustomSubsystem`
 
 Service class for RPC communication with ZMK custom subsystems.
 
 **Constructor:**
 
 ```typescript
-new ZMKService(connection: RpcConnection, subsystemIndex: number)
+new ZMKCustomSubsystem(connection: RpcConnection, subsystemIndex: number)
 ```
 
 **Methods:**
@@ -203,12 +206,12 @@ new ZMKService(connection: RpcConnection, subsystemIndex: number)
 - `getSubsystemIndex(): number` - Get subsystem index
 - `getConnection(): RpcConnection` - Get RPC connection
 
-### `ZMKServiceError`
+### `ZMKCustomSubsystemError`
 
 Custom error class for service operations.
 
 ```typescript
-new ZMKServiceError(
+new ZMKCustomSubsystemError(
   type: 'connection' | 'rpc' | 'validation',
   message: string,
   code?: number

@@ -10,7 +10,8 @@ import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
  * Generic ZMK Service for basic RPC communication
  * Contains only truly generic functionality shared by all ZMK modules
  */
-export class ZMKService {
+
+export class ZMKCustomSubsystem {
   private conn: RpcConnection;
   private subsystemIndex: number;
 
@@ -37,7 +38,7 @@ export class ZMKService {
   }
 
   /**
-   * Check if the service is ready for use
+   * Check if the subsystem is ready for use
    */
   isReady(): boolean {
     return !!this.conn;
@@ -61,7 +62,7 @@ export class ZMKService {
 /**
  * Error types for ZMK service operations
  */
-export class ZMKServiceError extends Error {
+export class ZMKCustomSubsystemError extends Error {
   public type: "connection" | "rpc" | "validation";
   public code?: number;
 
@@ -71,7 +72,7 @@ export class ZMKServiceError extends Error {
     code?: number
   ) {
     super(message);
-    this.name = "ZMKServiceError";
+    this.name = "ZMKCustomSubsystemError";
     this.type = type;
     this.code = code;
   }

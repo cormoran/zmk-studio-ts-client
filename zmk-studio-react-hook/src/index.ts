@@ -4,7 +4,7 @@
  */
 
 export { useZMKApp } from "./useZMKApp";
-export { ZMKService, ZMKServiceError } from "./ZMKService";
+export { ZMKCustomSubsystem, ZMKCustomSubsystemError } from "./ZMKService";
 export { ZMKConnection } from "./ZMKConnection";
 
 export type { ZMKAppState, UseZMKAppReturn } from "./useZMKApp";

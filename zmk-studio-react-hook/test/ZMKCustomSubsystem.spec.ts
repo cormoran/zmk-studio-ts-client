@@ -1,8 +1,8 @@
 /**
- * Tests for ZMKService
+ * Tests for ZMKCustomSubsystem
  */
 
-import { ZMKService, ZMKServiceError } from "../src/ZMKService";
+import { ZMKCustomSubsystem, ZMKCustomSubsystemError } from "../src/ZMKService";
 import type { RpcConnection } from "@zmkfirmware/zmk-studio-ts-client";
 
 // Mock the call_rpc function
@@ -10,9 +10,9 @@ jest.mock("@zmkfirmware/zmk-studio-ts-client", () => ({
   call_rpc: jest.fn(),
 }));
 
-describe("ZMKService", () => {
+describe("ZMKCustomSubsystem", () => {
   let mockConnection: RpcConnection;
-  let service: ZMKService;
+  let service: ZMKCustomSubsystem;
   const subsystemIndex = 5;
 
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe("ZMKService", () => {
       current_request: 0,
     } as unknown as RpcConnection;
 
-    service = new ZMKService(mockConnection, subsystemIndex);
+    service = new ZMKCustomSubsystem(mockConnection, subsystemIndex);
   });
 
   describe("constructor", () => {
@@ -96,7 +96,7 @@ describe("ZMKService", () => {
     });
 
     it("should return false when connection is null", () => {
-      const nullService = new ZMKService(null as any, 0);
+      const nullService = new ZMKCustomSubsystem(null as any, 0);
       expect(nullService.isReady()).toBe(false);
     });
   });
@@ -114,33 +114,33 @@ describe("ZMKService", () => {
   });
 });
 
-describe("ZMKServiceError", () => {
+describe("ZMKCustomSubsystemError", () => {
   it("should create connection error", () => {
-    const error = new ZMKServiceError("connection", "Failed to connect");
-    expect(error.name).toBe("ZMKServiceError");
+    const error = new ZMKCustomSubsystemError("connection", "Failed to connect");
+    expect(error.name).toBe("ZMKCustomSubsystemError");
     expect(error.type).toBe("connection");
     expect(error.message).toBe("Failed to connect");
     expect(error.code).toBeUndefined();
   });
 
   it("should create RPC error with code", () => {
-    const error = new ZMKServiceError("rpc", "RPC call failed", 404);
-    expect(error.name).toBe("ZMKServiceError");
+    const error = new ZMKCustomSubsystemError("rpc", "RPC call failed", 404);
+    expect(error.name).toBe("ZMKCustomSubsystemError");
     expect(error.type).toBe("rpc");
     expect(error.message).toBe("RPC call failed");
     expect(error.code).toBe(404);
   });
 
   it("should create validation error", () => {
-    const error = new ZMKServiceError("validation", "Invalid payload");
-    expect(error.name).toBe("ZMKServiceError");
+    const error = new ZMKCustomSubsystemError("validation", "Invalid payload");
+    expect(error.name).toBe("ZMKCustomSubsystemError");
     expect(error.type).toBe("validation");
     expect(error.message).toBe("Invalid payload");
   });
 
   it("should be instanceof Error", () => {
-    const error = new ZMKServiceError("connection", "Test error");
+    const error = new ZMKCustomSubsystemError("connection", "Test error");
     expect(error instanceof Error).toBe(true);
-    expect(error instanceof ZMKServiceError).toBe(true);
+    expect(error instanceof ZMKCustomSubsystemError).toBe(true);
   });
 });
