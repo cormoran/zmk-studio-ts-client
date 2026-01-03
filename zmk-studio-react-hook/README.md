@@ -4,9 +4,13 @@ React hooks wrapper for [@zmkfirmware/zmk-studio-ts-client](https://github.com/z
 
 ## Installation
 
+This repository is a fork. To install, specify the GitHub repository and branch directly:
+
 ```bash
-npm install @zmkfirmware/zmk-studio-react-hook
+npm install "github:cormoran/zmk-studio-ts-client#custom-studio-protocol"
 ```
+
+Replace `custom-studio-protocol` with the desired branch if it changes in the future.
 
 ## Quick Start
 
