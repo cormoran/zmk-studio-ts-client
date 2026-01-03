@@ -7,26 +7,39 @@ import type { RpcConnection } from "@zmkfirmware/zmk-studio-ts-client";
 import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 
 /**
- * Generic ZMK Service for basic RPC communication
- * Contains only truly generic functionality shared by all ZMK modules
+ * Service class for communicating with ZMK custom subsystems via RPC
+ *
+ * This class provides a simple interface for making RPC calls to custom
+ * subsystems on a connected ZMK device. Each subsystem has a unique index
+ * and can process custom protobuf payloads.
+ *
+ * @example
+ * const service = new ZMKCustomSubsystem(connection, subsystemIndex);
+ * const payload = new Uint8Array([1, 2, 3]); // Your protobuf payload
+ * const response = await service.callRPC(payload);
  */
-
 export class ZMKCustomSubsystem {
-  private conn: RpcConnection;
+  private connection: RpcConnection;
   private subsystemIndex: number;
 
+  /**
+   * Create a new subsystem service instance
+   * @param connection - Active RPC connection to the device
+   * @param subsystemIndex - Index of the subsystem to communicate with
+   */
   constructor(connection: RpcConnection, subsystemIndex: number) {
-    this.conn = connection;
+    this.connection = connection;
     this.subsystemIndex = subsystemIndex;
   }
 
   /**
-   * Make a raw RPC call to the ZMK device
-   * @param payload The serialized protobuf payload to send
-   * @returns The response payload, if any
+   * Send an RPC request to this subsystem
+   * @param payload - Serialized protobuf payload to send
+   * @returns The response payload from the device, or null if no response
+   * @throws Error if the RPC call fails
    */
   async callRPC(payload: Uint8Array): Promise<Uint8Array | null> {
-    const response = await call_rpc(this.conn, {
+    const response = await call_rpc(this.connection, {
       custom: {
         call: {
           subsystemIndex: this.subsystemIndex,
@@ -38,24 +51,27 @@ export class ZMKCustomSubsystem {
   }
 
   /**
-   * Check if the subsystem is ready for use
+   * Check if the subsystem is ready to receive RPC calls
+   * @returns true if the connection is active
    */
   isReady(): boolean {
-    return !!this.conn;
+    return !!this.connection;
   }
 
   /**
-   * Get the subsystem index
+   * Get the index of this subsystem
+   * @returns The subsystem index
    */
   getSubsystemIndex(): number {
     return this.subsystemIndex;
   }
 
   /**
-   * Get the RPC connection
+   * Get the underlying RPC connection
+   * @returns The RPC connection object
    */
   getConnection(): RpcConnection {
-    return this.conn;
+    return this.connection;
   }
 }
 

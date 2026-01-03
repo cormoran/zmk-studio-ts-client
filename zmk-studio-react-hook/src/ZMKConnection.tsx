@@ -44,30 +44,26 @@ export function ZMKConnection({
     await connect(connectFunction);
   };
 
+  // Disconnected state: show connection UI
   if (!isConnected) {
-    return (
-      <>
-        {renderDisconnected({
-          connect: handleConnect,
-          isLoading: state.isLoading,
-          error: state.error,
-        })}
-      </>
-    );
+    return renderDisconnected({
+      connect: handleConnect,
+      isLoading: state.isLoading,
+      error: state.error,
+    }) as React.ReactElement;
   }
 
-  return (
-    <>
-      {renderConnected({
-        disconnect,
-        deviceName: state.deviceInfo?.name,
-        subsystems:
-          state.customSubsystems?.subsystems.map((s) => ({
-            index: s.index,
-            identifier: s.identifier,
-          })) ?? [],
-        findSubsystem,
-      })}
-    </>
-  );
+  // Connected state: show device management UI
+  const subsystems =
+    state.customSubsystems?.subsystems.map((s) => ({
+      index: s.index,
+      identifier: s.identifier,
+    })) ?? [];
+
+  return renderConnected({
+    disconnect,
+    deviceName: state.deviceInfo?.name,
+    subsystems,
+    findSubsystem,
+  }) as React.ReactElement;
 }
