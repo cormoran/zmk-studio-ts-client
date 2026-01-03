@@ -16,16 +16,16 @@ Replace `custom-studio-protocol` with the desired branch if it changes in the fu
 
 ### Using ZMKConnection Component
 
-The library provides a headless `ZMKConnection` component that handles all connection logic without styling:
+The library provides a headless `ZMKConnection` component that renders component based on connection status.
 
 ```typescript
 import { ZMKConnection } from "@zmkfirmware/zmk-studio-react-hook";
-import { request_gatt_connection } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
+import { connect as connect_serial } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
 
 function MyComponent() {
   return (
     <ZMKConnection
-      connectFunction={request_gatt_connection}
+      connectFunction={connect_serial}
       renderDisconnected={({ connect, isLoading, error }) => (
         <div>
           {isLoading && <div>Connecting...</div>}
@@ -57,14 +57,14 @@ For more control, use the `useZMKApp` hook directly:
 
 ```typescript
 import { useZMKApp } from "@zmkfirmware/zmk-studio-react-hook";
-import { request_gatt_connection } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
+import { connect as connect_serial } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
 
 function MyComponent() {
   const { state, connect, disconnect, isConnected, findSubsystem } =
     useZMKApp();
 
   const handleConnect = async () => {
-    await connect(request_gatt_connection);
+    await connect(connect_serial);
   };
 
   if (state.isLoading) {
@@ -94,7 +94,7 @@ function MyComponent() {
 }
 ```
 
-### Using ZMKCustomSubsystem for RPC Calls
+### Using ZMKCustomSubsystem to interact with your ZMK module
 
 ```typescript
 import {
@@ -109,12 +109,13 @@ function MyComponent() {
 
   useEffect(() => {
     if (state.connection && state.customSubsystems) {
-      const subsystem = state.customSubsystems.subsystems[0];
-      if (subsystem) {
-        setService(new ZMKCustomSubsystem(state.connection, subsystem.index));
+      // Replace 'your_identifier' with the actual identifier string for your subsystem
+      const found = findSubsystem("your_identifier");
+      if (found) {
+        setService(new ZMKCustomSubsystem(state.connection, found.index));
       }
     }
-  }, [state.connection, state.customSubsystems]);
+  }, [state.connection, state.customSubsystems, findSubsystem]);
 
   const sendRPC = async () => {
     if (service) {
@@ -132,7 +133,7 @@ function MyComponent() {
 }
 ```
 
-### Handling Custom Notifications
+### Handling Custom Notifications from your ZMK module
 
 Subscribe to custom notifications from specific subsystems:
 
@@ -146,8 +147,12 @@ function MyComponent() {
   useEffect(() => {
     if (!isConnected) return;
 
-    // Subscribe to notifications from subsystem 0
-    const unsubscribe = onNotification(0, (notification) => {
+    // Replace 'your_identifier' with the actual identifier string for your subsystem
+    const found = findSubsystem("your_identifier");
+    if (!found) return;
+
+    // Subscribe to notifications from the found subsystem
+    const unsubscribe = onNotification(found.index, (notification) => {
       console.log("Received notification:", notification);
       console.log("Payload:", notification.payload);
     });
