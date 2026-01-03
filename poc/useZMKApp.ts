@@ -1,20 +1,16 @@
 /**
  * useZMKApp Hook
  * Generic hook for managing ZMK device connection and subsystem discovery
+ * This is reusable for any ZMK module application
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import {
-  create_rpc_connection,
-  call_rpc,
-} from "@zmkfirmware/zmk-studio-ts-client";
+import { useState, useCallback } from "react";
+import { create_rpc_connection } from "@zmkfirmware/zmk-studio-ts-client";
+import { call_rpc } from "../rpc/logging";
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
 import type { RpcConnection } from "@zmkfirmware/zmk-studio-ts-client";
 import type { GetDeviceInfoResponse } from "@zmkfirmware/zmk-studio-ts-client/core";
-import type {
-  ListCustomSubsystemResponse,
-  CustomNotification,
-} from "@zmkfirmware/zmk-studio-ts-client/custom";
+import type { ListCustomSubsystemResponse } from "@zmkfirmware/zmk-studio-ts-client/custom";
 
 export interface ZMKAppState {
   /** RPC connection to the device */
@@ -42,11 +38,6 @@ export interface UseZMKAppReturn {
   ) => { index: number; identifier: string } | null;
   /** Whether we're currently connected */
   isConnected: boolean;
-  /** Subscribe to custom notifications for a specific subsystem */
-  onNotification: (
-    subsystemIndex: number,
-    callback: (notification: CustomNotification) => void
-  ) => () => void;
 }
 
 /**
@@ -62,64 +53,14 @@ export function useZMKApp(): UseZMKAppReturn {
     error: null,
   });
 
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const notificationCallbacksRef = useRef<
-    Map<number, Set<(notification: CustomNotification) => void>>
-  >(new Map());
-
-  // Handle notification stream
-  useEffect(() => {
-    if (!state.connection) return;
-
-    const reader = state.connection.notification_readable.getReader();
-    const abortController = new AbortController();
-
-    const readNotifications = async () => {
-      try {
-        while (!abortController.signal.aborted) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          // Handle custom notifications
-          if (value.custom?.customNotification) {
-            const notification = value.custom.customNotification;
-            const callbacks = notificationCallbacksRef.current.get(
-              notification.subsystemIndex
-            );
-            if (callbacks) {
-              callbacks.forEach((callback) => callback(notification));
-            }
-          }
-        }
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          console.error("Error reading notifications:", error);
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    };
-
-    readNotifications();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [state.connection]);
-
   const connect = useCallback(
     async (connectFunction: () => Promise<RpcTransport>) => {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-      // Create new AbortController for this connection
-      abortControllerRef.current = new AbortController();
-
       try {
         // Create transport and connection
         const transport = await connectFunction();
-        const connection = create_rpc_connection(transport, {
-          signal: abortControllerRef.current.signal,
-        });
+        const connection = create_rpc_connection(transport, {});
 
         // Get device information
         const deviceInfo = await call_rpc(connection, {
@@ -128,7 +69,7 @@ export function useZMKApp(): UseZMKAppReturn {
           },
         })
           .then((resp) => resp.core?.getDeviceInfo)
-          .catch((e: Error) => {
+          .catch((e) => {
             console.error("Failed to get device info", e);
             return null;
           });
@@ -144,7 +85,7 @@ export function useZMKApp(): UseZMKAppReturn {
           },
         })
           .then((resp) => resp.custom?.listCustomSubsystems)
-          .catch((e: Error) => {
+          .catch((e) => {
             console.error("Failed to get custom subsystems", e);
             return null;
           });
@@ -167,21 +108,14 @@ export function useZMKApp(): UseZMKAppReturn {
           isLoading: false,
           error: errorMessage,
         }));
+
+        alert(`Failed to connect to device: ${errorMessage}`);
       }
     },
     []
   );
 
   const disconnect = useCallback(() => {
-    // Abort any ongoing connection
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-
-    // Clear notification callbacks
-    notificationCallbacksRef.current.clear();
-
     setState({
       connection: null,
       deviceInfo: null,
@@ -196,8 +130,7 @@ export function useZMKApp(): UseZMKAppReturn {
       if (!state.customSubsystems) return null;
 
       const subsystem = state.customSubsystems.subsystems.find(
-        (s: { identifier: string; index: number }) =>
-          s.identifier === identifier
+        (s) => s.identifier === identifier
       );
 
       return subsystem
@@ -205,35 +138,6 @@ export function useZMKApp(): UseZMKAppReturn {
         : null;
     },
     [state.customSubsystems]
-  );
-
-  const onNotification = useCallback(
-    (
-      subsystemIndex: number,
-      callback: (notification: CustomNotification) => void
-    ) => {
-      // Get or create the set of callbacks for this subsystem
-      let callbacks = notificationCallbacksRef.current.get(subsystemIndex);
-      if (!callbacks) {
-        callbacks = new Set();
-        notificationCallbacksRef.current.set(subsystemIndex, callbacks);
-      }
-
-      // Add the callback
-      callbacks.add(callback);
-
-      // Return unsubscribe function
-      return () => {
-        const callbacks = notificationCallbacksRef.current.get(subsystemIndex);
-        if (callbacks) {
-          callbacks.delete(callback);
-          if (callbacks.size === 0) {
-            notificationCallbacksRef.current.delete(subsystemIndex);
-          }
-        }
-      };
-    },
-    []
   );
 
   const isConnected = !!state.connection;
@@ -244,6 +148,5 @@ export function useZMKApp(): UseZMKAppReturn {
     disconnect,
     findSubsystem,
     isConnected,
-    onNotification,
   };
 }

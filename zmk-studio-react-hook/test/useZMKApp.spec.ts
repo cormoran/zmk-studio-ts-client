@@ -26,10 +26,19 @@ describe("useZMKApp", () => {
       send: jest.fn(),
     } as unknown as RpcTransport;
 
-    // Create mock connection
+    // Create mock notification reader that never resolves (simulates waiting)
+    const mockNotificationReader = {
+      read: jest.fn().mockReturnValue(new Promise(() => {})), // Never resolves
+      releaseLock: jest.fn(),
+    };
+
+    // Create mock connection with notification stream
     mockConnection = {
       label: "test",
       current_request: 0,
+      notification_readable: {
+        getReader: jest.fn().mockReturnValue(mockNotificationReader),
+      },
     } as unknown as RpcConnection;
   });
 
@@ -257,5 +266,144 @@ describe("useZMKApp", () => {
 
     const found = result.current.findSubsystem("any-subsystem");
     expect(found).toBeNull();
+  });
+
+  it("should handle notification subscriptions", async () => {
+    const { result } = renderHook(() => useZMKApp());
+    const {
+      create_rpc_connection,
+      call_rpc,
+    } = require("@zmkfirmware/zmk-studio-ts-client");
+
+    // Create a mock readable stream for notifications
+    const mockNotificationStream = {
+      getReader: jest.fn().mockReturnValue({
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: {
+              custom: {
+                customNotification: {
+                  subsystemIndex: 0,
+                  payload: new Uint8Array([1, 2, 3]),
+                },
+              },
+            },
+          })
+          .mockResolvedValue({ done: true }),
+        releaseLock: jest.fn(),
+      }),
+    };
+
+    const connectionWithNotifications = {
+      ...mockConnection,
+      notification_readable: mockNotificationStream,
+    };
+
+    create_rpc_connection.mockReturnValue(connectionWithNotifications);
+    (call_rpc as jest.Mock)
+      .mockResolvedValueOnce({
+        core: { getDeviceInfo: { name: "Test" } },
+      })
+      .mockResolvedValueOnce({
+        custom: { listCustomSubsystems: { subsystems: [] } },
+      });
+
+    const connectFunction = jest.fn().mockResolvedValue(mockTransport);
+    const notificationCallback = jest.fn();
+
+    // Subscribe to notifications before connecting
+    const unsubscribe = result.current.onNotification(0, notificationCallback);
+
+    await result.current.connect(connectFunction);
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    // Wait for notification to be processed
+    await waitFor(() => {
+      expect(notificationCallback).toHaveBeenCalledWith({
+        subsystemIndex: 0,
+        payload: expect.any(Uint8Array),
+      });
+    });
+
+    // Unsubscribe
+    unsubscribe();
+  });
+
+  it("should pass AbortSignal to create_rpc_connection", async () => {
+    const { result } = renderHook(() => useZMKApp());
+    const {
+      create_rpc_connection,
+      call_rpc,
+    } = require("@zmkfirmware/zmk-studio-ts-client");
+
+    create_rpc_connection.mockReturnValue(mockConnection);
+    (call_rpc as jest.Mock)
+      .mockResolvedValueOnce({
+        core: { getDeviceInfo: { name: "Test" } },
+      })
+      .mockResolvedValueOnce({
+        custom: { listCustomSubsystems: { subsystems: [] } },
+      });
+
+    const connectFunction = jest.fn().mockResolvedValue(mockTransport);
+
+    await result.current.connect(connectFunction);
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    expect(create_rpc_connection).toHaveBeenCalledWith(
+      mockTransport,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      })
+    );
+  });
+
+  it("should abort connection on disconnect", async () => {
+    const { result } = renderHook(() => useZMKApp());
+    const {
+      create_rpc_connection,
+      call_rpc,
+    } = require("@zmkfirmware/zmk-studio-ts-client");
+
+    create_rpc_connection.mockReturnValue(mockConnection);
+    (call_rpc as jest.Mock)
+      .mockResolvedValueOnce({
+        core: { getDeviceInfo: { name: "Test" } },
+      })
+      .mockResolvedValueOnce({
+        custom: { listCustomSubsystems: { subsystems: [] } },
+      });
+
+    const connectFunction = jest.fn().mockResolvedValue(mockTransport);
+
+    await result.current.connect(connectFunction);
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    // Get the AbortSignal that was passed
+    const callArgs = create_rpc_connection.mock.calls[0];
+    const abortSignal = callArgs[1]?.signal;
+
+    expect(abortSignal.aborted).toBe(false);
+
+    // Disconnect
+    result.current.disconnect();
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(false);
+    });
+
+    // AbortSignal should now be aborted
+    expect(abortSignal.aborted).toBe(true);
   });
 });
