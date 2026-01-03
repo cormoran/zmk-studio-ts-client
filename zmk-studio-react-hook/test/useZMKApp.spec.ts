@@ -313,8 +313,12 @@ describe("useZMKApp", () => {
     const connectFunction = jest.fn().mockResolvedValue(mockTransport);
     const notificationCallback = jest.fn();
 
-    // Subscribe to notifications before connecting
-    const unsubscribe = result.current.onNotification(0, notificationCallback);
+    // Subscribe to custom notifications before connecting
+    const unsubscribe = result.current.onNotification({
+      type: "custom",
+      subsystemIndex: 0,
+      callback: notificationCallback,
+    });
 
     await result.current.connect(connectFunction);
 
@@ -405,5 +409,135 @@ describe("useZMKApp", () => {
 
     // AbortSignal should now be aborted
     expect(abortSignal.aborted).toBe(true);
+  });
+
+  it("should handle core notifications", async () => {
+    const { result } = renderHook(() => useZMKApp());
+    const {
+      create_rpc_connection,
+      call_rpc,
+    } = require("@zmkfirmware/zmk-studio-ts-client");
+
+    // Create a mock readable stream for notifications
+    const mockNotificationStream = {
+      getReader: jest.fn().mockReturnValue({
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: {
+              core: {
+                lockStateChanged: { locked: true },
+              },
+            },
+          })
+          .mockResolvedValue({ done: true }),
+        releaseLock: jest.fn(),
+      }),
+    };
+
+    const connectionWithNotifications = {
+      ...mockConnection,
+      notification_readable: mockNotificationStream,
+    };
+
+    create_rpc_connection.mockReturnValue(connectionWithNotifications);
+    (call_rpc as jest.Mock)
+      .mockResolvedValueOnce({
+        core: { getDeviceInfo: { name: "Test" } },
+      })
+      .mockResolvedValueOnce({
+        custom: { listCustomSubsystems: { subsystems: [] } },
+      });
+
+    const connectFunction = jest.fn().mockResolvedValue(mockTransport);
+    const notificationCallback = jest.fn();
+
+    // Subscribe to core notifications before connecting
+    const unsubscribe = result.current.onNotification({
+      type: "core",
+      callback: notificationCallback,
+    });
+
+    await result.current.connect(connectFunction);
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    // Wait for notification to be processed
+    await waitFor(() => {
+      expect(notificationCallback).toHaveBeenCalledWith({
+        lockStateChanged: { locked: true },
+      });
+    });
+
+    // Unsubscribe
+    unsubscribe();
+  });
+
+  it("should handle keymap notifications", async () => {
+    const { result } = renderHook(() => useZMKApp());
+    const {
+      create_rpc_connection,
+      call_rpc,
+    } = require("@zmkfirmware/zmk-studio-ts-client");
+
+    // Create a mock readable stream for notifications
+    const mockNotificationStream = {
+      getReader: jest.fn().mockReturnValue({
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: {
+              keymap: {
+                unsavedChangesStatusChanged: true,
+              },
+            },
+          })
+          .mockResolvedValue({ done: true }),
+        releaseLock: jest.fn(),
+      }),
+    };
+
+    const connectionWithNotifications = {
+      ...mockConnection,
+      notification_readable: mockNotificationStream,
+    };
+
+    create_rpc_connection.mockReturnValue(connectionWithNotifications);
+    (call_rpc as jest.Mock)
+      .mockResolvedValueOnce({
+        core: { getDeviceInfo: { name: "Test" } },
+      })
+      .mockResolvedValueOnce({
+        custom: { listCustomSubsystems: { subsystems: [] } },
+      });
+
+    const connectFunction = jest.fn().mockResolvedValue(mockTransport);
+    const notificationCallback = jest.fn();
+
+    // Subscribe to keymap notifications before connecting
+    const unsubscribe = result.current.onNotification({
+      type: "keymap",
+      callback: notificationCallback,
+    });
+
+    await result.current.connect(connectFunction);
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    // Wait for notification to be processed
+    await waitFor(() => {
+      expect(notificationCallback).toHaveBeenCalledWith({
+        unsavedChangesStatusChanged: true,
+      });
+    });
+
+    // Unsubscribe
+    unsubscribe();
   });
 });

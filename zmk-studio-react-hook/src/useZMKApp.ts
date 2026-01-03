@@ -11,10 +11,25 @@ import {
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
 import type { RpcConnection } from "@zmkfirmware/zmk-studio-ts-client";
 import type { GetDeviceInfoResponse } from "@zmkfirmware/zmk-studio-ts-client/core";
+import type { Notification as CoreNotification } from "@zmkfirmware/zmk-studio-ts-client/core";
+import type { Notification as KeymapNotification } from "@zmkfirmware/zmk-studio-ts-client/keymap";
 import type {
   ListCustomSubsystemResponse,
   CustomNotification,
 } from "@zmkfirmware/zmk-studio-ts-client/custom";
+import type { Notification as StudioNotification } from "@zmkfirmware/zmk-studio-ts-client/studio";
+
+/**
+ * Notification subscription types
+ */
+export type NotificationSubscription =
+  | { type: "core"; callback: (notification: CoreNotification) => void }
+  | { type: "keymap"; callback: (notification: KeymapNotification) => void }
+  | {
+      type: "custom";
+      subsystemIndex: number;
+      callback: (notification: CustomNotification) => void;
+    };
 
 export interface ZMKAppState {
   /** RPC connection to the device */
@@ -42,11 +57,8 @@ export interface UseZMKAppReturn {
   ) => { index: number; identifier: string } | null;
   /** Whether we're currently connected */
   isConnected: boolean;
-  /** Subscribe to custom notifications for a specific subsystem */
-  onNotification: (
-    subsystemIndex: number,
-    callback: (notification: CustomNotification) => void
-  ) => () => void;
+  /** Subscribe to notifications */
+  onNotification: (subscription: NotificationSubscription) => () => void;
 }
 
 /**
@@ -63,7 +75,18 @@ export function useZMKApp(): UseZMKAppReturn {
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const notificationCallbacksRef = useRef<
+
+  // Consolidated callbacks for official notification types
+  const notificationCallbacksRef = useRef<{
+    core: Set<(notification: CoreNotification) => void>;
+    keymap: Set<(notification: KeymapNotification) => void>;
+  }>({
+    core: new Set(),
+    keymap: new Set(),
+  });
+
+  // Custom notifications need a Map since they're indexed by subsystem
+  const customNotificationCallbacksRef = useRef<
     Map<number, Set<(notification: CustomNotification) => void>>
   >(new Map());
 
@@ -86,10 +109,13 @@ export function useZMKApp(): UseZMKAppReturn {
           const { done, value } = await reader.read();
           if (done) break;
 
-          // Handle custom notifications from subsystems
-          const customNotification = value.custom?.customNotification;
-          if (customNotification) {
-            dispatchNotification(customNotification);
+          // Dispatch notifications based on type
+          if (value.core) {
+            dispatchNotification("core", value.core);
+          } else if (value.keymap) {
+            dispatchNotification("keymap", value.keymap);
+          } else if (value.custom?.customNotification) {
+            dispatchCustomNotification(value.custom.customNotification);
           }
         }
       } catch (error) {
@@ -110,10 +136,22 @@ export function useZMKApp(): UseZMKAppReturn {
   }, [state.connection]);
 
   /**
-   * Dispatch a notification to all registered callbacks for a subsystem
+   * Dispatch notification to all registered callbacks for a given type
    */
-  const dispatchNotification = (notification: CustomNotification) => {
-    const callbacks = notificationCallbacksRef.current.get(
+  const dispatchNotification = <T extends "core" | "keymap">(
+    type: T,
+    notification: T extends "core" ? CoreNotification : KeymapNotification
+  ) => {
+    notificationCallbacksRef.current[type].forEach((callback) =>
+      callback(notification as any)
+    );
+  };
+
+  /**
+   * Dispatch custom notification to all registered callbacks for a subsystem
+   */
+  const dispatchCustomNotification = (notification: CustomNotification) => {
+    const callbacks = customNotificationCallbacksRef.current.get(
       notification.subsystemIndex
     );
     if (callbacks) {
@@ -217,7 +255,9 @@ export function useZMKApp(): UseZMKAppReturn {
     }
 
     // Clear all notification subscriptions
-    notificationCallbacksRef.current.clear();
+    notificationCallbacksRef.current.core.clear();
+    notificationCallbacksRef.current.keymap.clear();
+    customNotificationCallbacksRef.current.clear();
 
     // Reset state to initial values
     setState({
@@ -250,43 +290,72 @@ export function useZMKApp(): UseZMKAppReturn {
   );
 
   /**
-   * Subscribe to notifications from a specific subsystem
-   * @param subsystemIndex - The index of the subsystem to listen to
-   * @param callback - Function to call when a notification is received
+   * Subscribe to notifications
+   * @param subscription - Notification subscription configuration
    * @returns Unsubscribe function to stop receiving notifications
    *
-   * @example
-   * const unsubscribe = onNotification(0, (notification) => {
-   *   console.log('Received:', notification.payload);
+   * @example Core notifications
+   * const unsubscribe = onNotification({
+   *   type: 'core',
+   *   callback: (notification) => {
+   *     console.log('Lock state:', notification.lockStateChanged);
+   *   }
    * });
-   * // Later: unsubscribe();
+   *
+   * @example Keymap notifications
+   * const unsubscribe = onNotification({
+   *   type: 'keymap',
+   *   callback: (notification) => {
+   *     console.log('Unsaved changes:', notification.unsavedChangesStatusChanged);
+   *   }
+   * });
+   *
+   * @example Custom notifications
+   * const unsubscribe = onNotification({
+   *   type: 'custom',
+   *   subsystemIndex: 0,
+   *   callback: (notification) => {
+   *     console.log('Custom payload:', notification.payload);
+   *   }
+   * });
    */
   const onNotification = useCallback(
-    (
-      subsystemIndex: number,
-      callback: (notification: CustomNotification) => void
-    ) => {
-      // Get or create the callback set for this subsystem
-      let callbacks = notificationCallbacksRef.current.get(subsystemIndex);
-      if (!callbacks) {
-        callbacks = new Set();
-        notificationCallbacksRef.current.set(subsystemIndex, callbacks);
-      }
-
-      // Register the callback
-      callbacks.add(callback);
-
-      // Return cleanup function to unsubscribe
-      return () => {
-        const callbacks = notificationCallbacksRef.current.get(subsystemIndex);
-        if (callbacks) {
-          callbacks.delete(callback);
-          // Clean up empty sets to prevent memory leaks
-          if (callbacks.size === 0) {
-            notificationCallbacksRef.current.delete(subsystemIndex);
-          }
+    (subscription: NotificationSubscription) => {
+      if (subscription.type === "core") {
+        // Subscribe to core notifications
+        notificationCallbacksRef.current.core.add(subscription.callback);
+        return () => {
+          notificationCallbacksRef.current.core.delete(subscription.callback);
+        };
+      } else if (subscription.type === "keymap") {
+        // Subscribe to keymap notifications
+        notificationCallbacksRef.current.keymap.add(subscription.callback);
+        return () => {
+          notificationCallbacksRef.current.keymap.delete(subscription.callback);
+        };
+      } else {
+        // Subscribe to custom notifications for a specific subsystem
+        const { subsystemIndex, callback } = subscription;
+        let callbacks =
+          customNotificationCallbacksRef.current.get(subsystemIndex);
+        if (!callbacks) {
+          callbacks = new Set();
+          customNotificationCallbacksRef.current.set(subsystemIndex, callbacks);
         }
-      };
+        callbacks.add(callback);
+
+        return () => {
+          const callbacks =
+            customNotificationCallbacksRef.current.get(subsystemIndex);
+          if (callbacks) {
+            callbacks.delete(callback);
+            // Clean up empty sets to prevent memory leaks
+            if (callbacks.size === 0) {
+              customNotificationCallbacksRef.current.delete(subsystemIndex);
+            }
+          }
+        };
+      }
     },
     []
   );

@@ -10,5 +10,9 @@ export {
 } from "./ZMKCustomSubsystem";
 export { ZMKConnection } from "./ZMKConnection";
 
-export type { ZMKAppState, UseZMKAppReturn } from "./useZMKApp";
+export type {
+  ZMKAppState,
+  UseZMKAppReturn,
+  NotificationSubscription,
+} from "./useZMKApp";
 export type { ZMKConnectionProps } from "./ZMKConnection";

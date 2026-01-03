@@ -142,7 +142,7 @@ import { useZMKApp } from "@zmkfirmware/zmk-studio-react-hook";
 import { useEffect } from "react";
 
 function MyComponent() {
-  const { state, onNotification, isConnected } = useZMKApp();
+  const { findSubsystem, onNotification, isConnected } = useZMKApp();
 
   useEffect(() => {
     if (!isConnected) return;
@@ -151,15 +151,19 @@ function MyComponent() {
     const found = findSubsystem("your_identifier");
     if (!found) return;
 
-    // Subscribe to notifications from the found subsystem
-    const unsubscribe = onNotification(found.index, (notification) => {
-      console.log("Received notification:", notification);
-      console.log("Payload:", notification.payload);
+    // Subscribe to custom notifications from the found subsystem
+    const unsubscribe = onNotification({
+      type: "custom",
+      subsystemIndex: found.index,
+      callback: (notification) => {
+        console.log("Received custom notification:", notification);
+        console.log("Payload:", notification.payload);
+      },
     });
 
     // Cleanup subscription on unmount
     return unsubscribe;
-  }, [isConnected, onNotification]);
+  }, [isConnected, findSubsystem, onNotification]);
 
   return <div>...</div>;
 }
@@ -195,8 +199,27 @@ Main hook for managing ZMK device connections.
 - `disconnect()`: Disconnect from device (aborts connection)
 - `findSubsystem(identifier)`: Find subsystem by identifier
 - `isConnected`: Boolean indicating connection status
-- `onNotification(subsystemIndex, callback)`: Subscribe to custom notifications
+- `onNotification(subscription)`: Subscribe to notifications
+  - `subscription.type`: `'core' | 'keymap' | 'custom'`
+  - For `'core'`: `{ type: 'core', callback: (notification) => void }`
+  - For `'keymap'`: `{ type: 'keymap', callback: (notification) => void }`
+  - For `'custom'`: `{ type: 'custom', subsystemIndex: number, callback: (notification) => void }`
   - Returns unsubscribe function
+
+### `NotificationSubscription`
+
+Type for notification subscriptions:
+
+```typescript
+type NotificationSubscription =
+  | { type: "core"; callback: (notification: CoreNotification) => void }
+  | { type: "keymap"; callback: (notification: KeymapNotification) => void }
+  | {
+      type: "custom";
+      subsystemIndex: number;
+      callback: (notification: CustomNotification) => void;
+    };
+```
 
 ### `ZMKCustomSubsystem`
 
