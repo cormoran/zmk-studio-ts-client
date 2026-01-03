@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2020",
+    "lib": ["ES2022", "DOM"],
+    "moduleResolution": "node",
+    "declaration": true,
+    "outDir": "./lib/",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react",
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@zmkfirmware/zmk-studio-ts-client": ["../lib/index.d.ts"],
+      "@zmkfirmware/zmk-studio-ts-client/*": ["../lib/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "lib", "test"]
+}
