@@ -6,8 +6,8 @@ const RPC_CHRC_UUID = '00000001-0196-6107-c967-c5cfb1c2482a';
 
 export async function connect(): Promise<RpcTransport> {
   let dev = await navigator.bluetooth.requestDevice({
-    filters: [{ services: [SERVICE_UUID] }],
-    optionalServices: [SERVICE_UUID],
+    filters: [{ services: [SERVICE_UUID, SERVICE_UUID.toUpperCase()] }],
+    optionalServices: [SERVICE_UUID, SERVICE_UUID.toUpperCase()],
   }).catch((e) => {
     if (e instanceof DOMException && e.name == "NotFoundError") {
       throw new UserCancelledError("User cancelled the connection attempt", { cause: e});
@@ -29,8 +29,12 @@ export async function connect(): Promise<RpcTransport> {
     await dev.gatt.connect();
   }
 
-  let svc = await dev.gatt.getPrimaryService(SERVICE_UUID);
-  let char = await svc.getCharacteristic(RPC_CHRC_UUID);
+let svc = await dev.gatt.getPrimaryService(SERVICE_UUID).catch(() => 
+    dev.gatt!.getPrimaryService(SERVICE_UUID.toUpperCase())
+);
+let char = await svc.getCharacteristic(RPC_CHRC_UUID).catch(() =>
+    svc.getCharacteristic(RPC_CHRC_UUID.toUpperCase())
+);
 
   let readable = new ReadableStream({
     async start(controller) {
