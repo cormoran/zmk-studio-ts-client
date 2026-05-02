@@ -1,3 +1,4 @@
+/// <reference types="web-bluetooth" />
 import type { RpcTransport } from './';
 import { UserCancelledError } from './errors';
 
@@ -17,7 +18,7 @@ class Deferred<T> {
     }
 }
 
-export async function connect(): Promise<RpcTransport> {
+export async function connect(options: Partial<RequestDeviceOptions> = {}): Promise<RpcTransport> {
   const isBluefy = (() => {
     try {
         return navigator.userAgent.includes('Bluefy');
@@ -28,10 +29,12 @@ export async function connect(): Promise<RpcTransport> {
   })();
   const serviceUUID = isBluefy ? SERVICE_UUID.toUpperCase() : SERVICE_UUID;
   const rpcChrcUUID = isBluefy ? RPC_CHRC_UUID.toUpperCase() : RPC_CHRC_UUID;
-  const option = isBluefy ? { acceptAllDevices: true } : { filters: [{ services: [serviceUUID] }, { services: ['battery_service'] }] };
+
+  const filters = isBluefy ? [{ services: ['battery_service'] }] : [{ services: [serviceUUID] }, { services: ['battery_service'] }];  
   let dev = await navigator.bluetooth.requestDevice({    
     optionalServices: [serviceUUID],
-    ...option
+    // only either acceptAllDevices or filters can be provided
+    ...('acceptAllDevices' in options || 'filters' in options) ? options as RequestDeviceOptions : { filters, ...options },
   }).catch((e) => {
     if (e instanceof DOMException && e.name == "NotFoundError") {
       throw new UserCancelledError("User cancelled the connection attempt", { cause: e});
